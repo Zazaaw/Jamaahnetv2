@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Home, Calendar, Store, HeartHandshake, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Toaster } from 'sonner@2.0.3';
@@ -11,6 +11,7 @@ import MarketplaceScreen from './components/MarketplaceScreen';
 import DonationScreen from './components/DonationScreen';
 import ProfileScreen from './components/ProfileScreen';
 import AuthScreen from './components/AuthScreen';
+import PendingApprovalScreen from './components/PendingApprovalScreen';
 import ProductDetailScreen from './components/ProductDetailScreen';
 import ChatListScreen from './components/ChatListScreen';
 import ChatScreen from './components/ChatScreen';
@@ -19,12 +20,14 @@ import ArticleDetailScreen from './components/ArticleDetailScreen';
 import AllArticlesScreen from './components/AllArticlesScreen';
 import CreateTimelineScreen from './components/CreateTimelineScreen';
 import TimelineDetailScreen from './components/TimelineDetailScreen';
+import ContactScreen from './components/ContactScreen';
+import AppFooter from './components/AppFooter';
 import InitData from './components/InitData';
 import { toast } from 'sonner';
 
 const supabase = getSupabaseClient();
 
-type Screen = 'splash' | 'home' | 'calendar' | 'marketplace' | 'donation' | 'profile' | 'auth' | 'product-detail' | 'chat-list' | 'chat' | 'connections' | 'article-detail' | 'all-articles' | 'create-timeline' | 'timeline-detail';
+type Screen = 'splash' | 'home' | 'calendar' | 'marketplace' | 'donation' | 'profile' | 'auth' | 'pending-approval' | 'product-detail' | 'chat-list' | 'chat' | 'connections' | 'article-detail' | 'all-articles' | 'create-timeline' | 'timeline-detail' | 'contact';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
@@ -114,7 +117,21 @@ export default function App() {
       <>
         <AuthScreen 
           onSuccess={() => setCurrentScreen('home')}
+          onSignupSuccess={() => setCurrentScreen('pending-approval')}
           onBack={() => setCurrentScreen('profile')}
+        />
+        <Toaster position="top-center" richColors />
+      </>
+    );
+  }
+
+  if (currentScreen === 'pending-approval') {
+    return (
+      <>
+        <PendingApprovalScreen 
+          onNavigateToLogin={() => {
+            setCurrentScreen('auth');
+          }}
         />
         <Toaster position="top-center" richColors />
       </>
@@ -294,10 +311,22 @@ export default function App() {
     );
   }
 
+  if (currentScreen === 'contact') {
+    return (
+      <>
+        <ContactScreen 
+          onBack={() => setCurrentScreen('profile')}
+        />
+        <Toaster position="top-center" richColors />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <InitData />
       <Toaster position="top-center" richColors />
+      
       {/* Main Content */}
       <div className="flex-1 overflow-auto pb-20">
         {currentScreen === 'home' && <HomeScreen session={session} onNavigate={handleNavigation} key={homeRefreshKey} />}

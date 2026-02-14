@@ -1,24 +1,54 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Mail, Lock, Key, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Key, User as UserIcon, Phone } from 'lucide-react';
 import { getSupabaseClient } from '../utils/supabase/client';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 const supabase = getSupabaseClient();
 
 export default function AuthScreen({ 
-  onSuccess, 
+  onSuccess,
+  onSignupSuccess,
   onBack 
 }: { 
   onSuccess: () => void;
+  onSignupSuccess: () => void;
   onBack: () => void;
 }) {
   const [isSignup, setIsSignup] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Validasi format nomor HP Indonesia
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Hapus semua karakter non-digit
+    const cleaned = phone.replace(/\D/g, '');
+    
+    // Format yang diterima:
+    // 08xxxxxxxxxx (10-13 digit)
+    // 628xxxxxxxxxx (11-14 digit)
+    // +628xxxxxxxxxx (12-15 digit dengan +)
+    
+    if (phone.startsWith('+62')) {
+      return /^\+62\d{9,12}$/.test(phone);
+    } else if (phone.startsWith('62')) {
+      return /^62\d{9,12}$/.test(phone);
+    } else if (phone.startsWith('08')) {
+      return /^08\d{8,11}$/.test(phone);
+    }
+    
+    return false;
+  };
+
+  const handlePhoneChange = (value: string) => {
+    // Hanya izinkan angka, + dan spasi
+    const cleaned = value.replace(/[^\d+\s]/g, '');
+    setPhone(cleaned);
+  };
 
   const handleGoogleLogin = async () => {
     try {
@@ -41,6 +71,13 @@ export default function AuthScreen({
     setLoading(true);
     setError('');
 
+    // Validasi nomor HP
+    if (!validatePhoneNumber(phone)) {
+      setError('Format nomor HP tidak valid. Gunakan format: 08xxxxxxxxxx, 628xxxxxxxxxx, atau +628xxxxxxxxxx');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4319e602/auth/signup`,
@@ -52,8 +89,8 @@ export default function AuthScreen({
           },
           body: JSON.stringify({
             email,
-            password,
             name,
+            phone,
             invitationCode,
           }),
         }
@@ -65,17 +102,14 @@ export default function AuthScreen({
         throw new Error(data.error || 'Gagal mendaftar');
       }
 
-      // Now sign in
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        throw signInError;
-      }
-
-      onSuccess();
+      // Redirect to pending approval screen
+      onSignupSuccess();
+      
+      // Clear form
+      setEmail('');
+      setName('');
+      setPhone('');
+      setInvitationCode('');
     } catch (err: any) {
       setError(err.message || 'Gagal mendaftar');
     } finally {
@@ -161,22 +195,62 @@ export default function AuthScreen({
             </div>
           </div>
 
-          {/* Password */}
-          <div>
-            <label className="block text-sm text-gray-700 mb-2">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                placeholder="Minimal 6 karakter"
-                required
-                minLength={6}
-              />
+          {/* Password - Only show for login */}
+          {!isSignup && (
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="Masukkan password Anda"
+                  required
+                  minLength={6}
+                />
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Info: Password will be sent after approval (signup only) */}
+          {isSignup && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800">
+              <div className="flex items-start gap-2">
+                <Lock className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block mb-1">Password akan dikirimkan setelah akun disetujui</strong>
+                  <p className="text-emerald-700">
+                    Anda tidak perlu membuat password sekarang. Password akan digenerate secara otomatis dan dikirimkan melalui WhatsApp & Email setelah admin menyetujui akun Anda.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Phone (signup only) */}
+          {isSignup && (
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">
+                Nomor Telepon <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="081234567890 atau +6281234567890"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Format: 08xxxxxxxxxx, 628xxxxxxxxxx, atau +628xxxxxxxxxx
+              </p>
+            </div>
+          )}
 
           {/* Invitation Code (signup only) */}
           {isSignup && (

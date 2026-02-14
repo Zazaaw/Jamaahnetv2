@@ -109,7 +109,7 @@ export default function CalendarScreen({ session }: { session: any }) {
               <CalendarIcon className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Kalender Kegiatan</h1>
+              <h1 className="text-2xl font-bold">Kegiatan Jamaah</h1>
               <p className="text-blue-100 text-sm">Jangan lewatkan momen berharga</p>
             </div>
           </div>

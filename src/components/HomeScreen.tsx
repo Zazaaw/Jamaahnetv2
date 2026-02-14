@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { IslamicPattern, MosqueIcon } from './IslamicPattern';
 import DynamicIslamicHeader from './DynamicIslamicHeader';
+import NotificationBell from './NotificationBell';
 
 interface Announcement {
   id: string;
@@ -357,21 +358,24 @@ export default function HomeScreen({
         >
           <QuickAccessButton
             icon={Calendar}
-            label="Kalender"
+            label="Kegiatan"
             color="from-blue-500 to-blue-600"
             delay={0.1}
-          />
-          <QuickAccessButton
-            icon={DollarSign}
-            label="Donasi"
-            color="from-emerald-500 to-emerald-600"
-            delay={0.2}
+            onClick={() => onNavigate?.('calendar')}
           />
           <QuickAccessButton
             icon={Store}
             label="Pasar"
             color="from-orange-500 to-orange-600"
+            delay={0.2}
+            onClick={() => onNavigate?.('marketplace')}
+          />
+          <QuickAccessButton
+            icon={DollarSign}
+            label="Donasi"
+            color="from-emerald-500 to-emerald-600"
             delay={0.3}
+            onClick={() => onNavigate?.('donation')}
           />
         </motion.div>
 
@@ -817,11 +821,13 @@ function QuickAccessButton({
   label,
   color,
   delay,
+  onClick,
 }: {
   icon: React.ElementType;
   label: string;
   color: string;
   delay: number;
+  onClick?: () => void;
 }) {
   return (
     <motion.button
@@ -830,6 +836,7 @@ function QuickAccessButton({
       transition={{ delay, type: "spring", stiffness: 200 }}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
+      onClick={onClick}
       className="group flex flex-col items-center gap-3 p-5 bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700/50 card-hover"
     >
       <div className={`bg-gradient-to-br ${color} w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-all group-hover:rotate-6`}>

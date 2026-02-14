@@ -9,7 +9,7 @@ interface DynamicIslamicHeaderProps {
   onToggleNotifications: () => void;
 }
 
-type PrayerPeriod = 'subuh' | 'dhuhur' | 'ashar' | 'maghrib' | 'isya';
+type PrayerPeriod = 'subuh' | 'dzuhur' | 'ashar' | 'maghrib' | 'isya';
 
 interface PrayerTime {
   name: string;
@@ -91,7 +91,7 @@ export default function DynamicIslamicHeader({
   const getPrayerPeriod = (): PrayerPeriod => {
     const hour = currentTime.getHours();
     if (hour >= 4 && hour < 6) return 'subuh';
-    if (hour >= 6 && hour < 15) return 'dhuhur';
+    if (hour >= 6 && hour < 15) return 'dzuhur';
     if (hour >= 15 && hour < 18) return 'ashar';
     if (hour >= 18 && hour < 19) return 'maghrib';
     return 'isya';
@@ -107,7 +107,7 @@ export default function DynamicIslamicHeader({
       icon: Sun,
       animation: 'clouds',
     },
-    dhuhur: {
+    dzuhur: {
       gradient: 'from-sky-400 via-blue-400 to-cyan-300',
       overlay: 'from-blue-400/20 via-cyan-300/10 to-sky-200/20',
       icon: Cloud,
@@ -231,20 +231,20 @@ export default function DynamicIslamicHeader({
         >
           <motion.div
             animate={{
-              rotate: period === 'dhuhur' ? 360 : [0, 5, -5, 0],
+              rotate: period === 'dzuhur' ? 360 : [0, 5, -5, 0],
             }}
             transition={{
               rotate: {
-                duration: period === 'dhuhur' ? 20 : 7,
+                duration: period === 'dzuhur' ? 20 : 7,
                 repeat: Infinity,
-                ease: period === 'dhuhur' ? 'linear' : 'easeInOut',
+                ease: period === 'dzuhur' ? 'linear' : 'easeInOut',
               }
             }}
           >
             <Sun 
               className={`drop-shadow-[0_0_20px_rgba(255,255,100,0.6)] ${
                 period === 'subuh' ? 'text-orange-200' :
-                period === 'dhuhur' ? 'text-yellow-100' :
+                period === 'dzuhur' ? 'text-yellow-100' :
                 period === 'ashar' ? 'text-amber-200' :
                 'text-orange-300'
               }`}
@@ -417,11 +417,7 @@ export default function DynamicIslamicHeader({
               <MosqueIcon className="w-8 h-8 text-white" />
             </motion.div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Masjid Al-Ikhlas</h1>
-              <p className="text-white/80 text-sm flex items-center gap-1">
-                <span className="w-2 h-2 bg-emerald-300 rounded-full animate-pulse" />
-                Jakarta Selatan
-              </p>
+              <h1 className="text-2xl font-bold tracking-tight">Jamaah.net</h1>
             </div>
           </div>
           <motion.button 
@@ -476,41 +472,41 @@ export default function DynamicIslamicHeader({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white/15 backdrop-blur-xl rounded-3xl p-5 border border-white/20 shadow-2xl"
+          className="bg-white/15 backdrop-blur-xl rounded-3xl p-4 sm:p-5 border border-white/20 shadow-2xl"
         >
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-3">
             <motion.div
               animate={{ rotate: [0, 10, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             >
               <Star className="w-4 h-4 text-yellow-300" fill="currentColor" />
             </motion.div>
-            <span className="text-sm font-medium text-white/90">Waktu Shalat Hari Ini</span>
+            <span className="text-xs sm:text-sm font-medium text-white/90">Waktu Shalat Hari Ini</span>
           </div>
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2 md:gap-3">
             {prayerTimes.map((prayer, index) => (
               <motion.div
                 key={prayer.name}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + index * 0.1 }}
-                className={`text-center p-3 rounded-2xl transition-all ${
+                className={`text-center p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl transition-all ${
                   prayer.name === activePrayer
                     ? 'bg-white/30 backdrop-blur-md scale-105 shadow-lg' 
                     : 'bg-white/10'
                 }`}
               >
-                <div className={`text-xs mb-1 ${prayer.name === activePrayer ? 'text-white font-semibold' : 'text-white/80'}`}>
+                <div className={`text-[10px] sm:text-xs mb-0.5 sm:mb-1 truncate ${prayer.name === activePrayer ? 'text-white font-semibold' : 'text-white/80'}`}>
                   {prayer.name}
                 </div>
-                <div className={`text-sm font-bold ${prayer.name === activePrayer ? 'text-white' : 'text-white/90'}`}>
+                <div className={`text-xs sm:text-sm font-bold tabular-nums ${prayer.name === activePrayer ? 'text-white' : 'text-white/90'}`}>
                   {prayer.time}
                 </div>
                 {prayer.name === activePrayer && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="mt-1"
+                    className="mt-0.5 sm:mt-1"
                   >
                     <div className="w-1.5 h-1.5 bg-yellow-300 rounded-full mx-auto animate-pulse" />
                   </motion.div>

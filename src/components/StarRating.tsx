@@ -33,24 +33,33 @@ export function StarRating({
 
   return (
     <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((value) => (
-        <motion.button
-          key={value}
-          type="button"
-          whileTap={!readonly ? { scale: 0.9 } : {}}
-          onClick={() => handleClick(value)}
-          disabled={readonly}
-          className={`${readonly ? 'cursor-default' : 'cursor-pointer'} transition-transform`}
-        >
-          <Star
-            className={`${sizeClasses[size]} ${
-              value <= rating
-                ? 'fill-amber-400 text-amber-400'
-                : 'fill-none text-gray-300 dark:text-gray-600'
-            } transition-colors`}
-          />
-        </motion.button>
-      ))}
+      {[1, 2, 3, 4, 5].map((value) => {
+        // Use div for readonly, button for interactive
+        const Component = readonly ? motion.div : motion.button;
+        const componentProps = readonly 
+          ? { className: 'cursor-default transition-transform' }
+          : {
+              type: 'button' as const,
+              whileTap: { scale: 0.9 },
+              onClick: () => handleClick(value),
+              className: 'cursor-pointer transition-transform'
+            };
+
+        return (
+          <Component
+            key={value}
+            {...componentProps}
+          >
+            <Star
+              className={`${sizeClasses[size]} ${
+                value <= rating
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'fill-none text-gray-300 dark:text-gray-600'
+              } transition-colors`}
+            />
+          </Component>
+        );
+      })}
       {showCount && (
         <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
           ({count})

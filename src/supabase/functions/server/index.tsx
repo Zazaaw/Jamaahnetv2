@@ -733,6 +733,25 @@ Mari kita berusaha membangun keluarga yang sakinah, mawaddah, dan rahmah sebagai
 // Initialize data on server start
 initializeDefaultData();
 
+// Generate unique Member ID
+async function generateMemberId(): Promise<string> {
+  // Format: JMH-XXXXXX (JMH = Jamaah, XXXXXX = 6 digit unique number)
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  const uniqueNumber = (timestamp % 1000000).toString().padStart(6, '0');
+  const memberId = `JMH-${uniqueNumber}`;
+  
+  // Check if ID already exists, if yes, regenerate
+  const existing = await kv.get(`member_id:${memberId}`);
+  if (existing) {
+    // Add random to make it unique
+    const newId = `JMH-${((timestamp + random) % 1000000).toString().padStart(6, '0')}`;
+    return newId;
+  }
+  
+  return memberId;
+}
+
 // Health check endpoint
 app.get("/make-server-4319e602/health", (c) => {
   return c.json({ status: "ok" });
@@ -741,7 +760,7 @@ app.get("/make-server-4319e602/health", (c) => {
 // Auth: Sign up with invitation code
 app.post("/make-server-4319e602/auth/signup", async (c) => {
   try {
-    const { email, password, name, invitationCode } = await c.req.json();
+    const { email, name, phone, invitationCode } = await c.req.json();
     
     // Verify invitation code
     const validCode = await kv.get(`invitation:${invitationCode}`);
@@ -749,11 +768,24 @@ app.post("/make-server-4319e602/auth/signup", async (c) => {
       return c.json({ error: 'Kode undangan tidak valid' }, 400);
     }
     
-    // Create user
+    // Generate unique Member ID
+    const memberId = await generateMemberId();
+    
+    // Generate temporary random password (user won't use this until approved)
+    const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
+    
+    // Create user with pending status
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password,
-      user_metadata: { name, role: 'Member' },
+      password: tempPassword,
+      user_metadata: { 
+        name, 
+        phone, 
+        role: 'Member',
+        memberId,
+        status: 'pending_approval', // User needs admin approval
+        joinedAt: new Date().toISOString()
+      },
       // Automatically confirm the user's email since an email server hasn't been configured.
       email_confirm: true
     });
@@ -763,13 +795,271 @@ app.post("/make-server-4319e602/auth/signup", async (c) => {
       return c.json({ error: error.message }, 400);
     }
     
+    // Store member ID mapping for uniqueness check
+    await kv.set(`member_id:${memberId}`, {
+      userId: data.user.id,
+      email,
+      name,
+      phone,
+      status: 'pending_approval',
+      createdAt: new Date().toISOString()
+    });
+    
+    // Store pending user for admin review
+    await kv.set(`pending_user:${data.user.id}`, {
+      userId: data.user.id,
+      email,
+      name,
+      phone,
+      memberId,
+      invitationCode,
+      createdAt: new Date().toISOString()
+    });
+    
     // Mark invitation code as used
     await kv.set(`invitation:${invitationCode}:used`, email);
     
-    return c.json({ user: data.user });
+    return c.json({ 
+      success: true,
+      message: 'Pendaftaran berhasil. Menunggu persetujuan admin.',
+      memberId 
+    });
   } catch (error) {
     console.log('Error in signup endpoint:', error);
     return c.json({ error: 'Gagal mendaftar' }, 500);
+  }
+});
+
+// Admin: Approve user and send password
+app.post("/make-server-4319e602/admin/approve-user", async (c) => {
+  try {
+    const { userId } = await c.req.json();
+    
+    // Get pending user data
+    const pendingUser = await kv.get(`pending_user:${userId}`);
+    if (!pendingUser) {
+      return c.json({ error: 'User tidak ditemukan' }, 404);
+    }
+    
+    // Generate secure password (8 characters: letters + numbers)
+    const generatePassword = () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+      let password = '';
+      for (let i = 0; i < 8; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return password;
+    };
+    
+    const newPassword = generatePassword();
+    
+    // Update user password
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      {
+        password: newPassword,
+        user_metadata: {
+          ...pendingUser,
+          status: 'approved',
+          approvedAt: new Date().toISOString()
+        }
+      }
+    );
+    
+    if (updateError) {
+      console.log('Error updating user password:', updateError);
+      return c.json({ error: 'Gagal memperbarui password' }, 500);
+    }
+    
+    // Update member ID status
+    await kv.set(`member_id:${pendingUser.memberId}`, {
+      ...await kv.get(`member_id:${pendingUser.memberId}`),
+      status: 'approved',
+      approvedAt: new Date().toISOString()
+    });
+    
+    // Create in-app notification
+    const notificationId = `notif_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    await kv.set(`notification:${userId}:${notificationId}`, {
+      id: notificationId,
+      userId,
+      type: 'approval',
+      title: '🎉 Akun Anda Telah Disetujui!',
+      message: `Selamat! Akun Anda telah disetujui oleh admin. Anda sekarang dapat login menggunakan password yang telah dikirimkan.`,
+      memberId: pendingUser.memberId,
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+    
+    // Remove from pending list
+    await kv.del(`pending_user:${userId}`);
+    
+    // Prepare notification message
+    const whatsappMessage = `🎉 *Jamaah.net - Akun Disetujui*\n\nAssalamu'alaikum ${pendingUser.name},\n\nSelamat! Akun Anda telah disetujui.\n\n*ID Member:* ${pendingUser.memberId}\n*Email:* ${pendingUser.email}\n*Password:* ${newPassword}\n\nSilakan login di jamaah.net menggunakan kredensial di atas.\n\n*PENTING:* Ubah password Anda setelah login pertama kali melalui menu Profil > Ubah Password.\n\nBarakallahu fiikum! 🤲`;
+    
+    const emailSubject = '🎉 Akun Jamaah.net Anda Telah Disetujui';
+    const emailBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #059669 0%, #0d9488 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="margin: 0;">🕌 Jamaah.net</h1>
+          <p style="margin: 10px 0 0 0;">Platform Komunitas Muslim Digital</p>
+        </div>
+        
+        <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #059669;">Assalamu'alaikum ${pendingUser.name},</h2>
+          
+          <p style="color: #374151; line-height: 1.6;">
+            Selamat! Akun Anda telah <strong>disetujui</strong> oleh admin. Anda sekarang dapat mengakses semua fitur di Jamaah.net.
+          </p>
+          
+          <div style="background: white; border: 2px solid #059669; border-radius: 10px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #059669; margin-top: 0;">📋 Informasi Login Anda</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>ID Member:</strong></td>
+                <td style="padding: 8px 0; color: #111827; font-family: monospace; font-size: 16px;"><strong>${pendingUser.memberId}</strong></td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Email:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${pendingUser.email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Password:</strong></td>
+                <td style="padding: 8px 0; color: #111827; font-family: monospace; font-size: 18px; background: #fef3c7; padding: 5px 10px; border-radius: 5px;"><strong>${newPassword}</strong></td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px;">
+            <p style="margin: 0; color: #92400e;">
+              <strong>⚠️ PENTING:</strong> Untuk keamanan akun Anda, silakan <strong>ubah password</strong> setelah login pertama kali melalui menu <strong>Profil > Ubah Password</strong>.
+            </p>
+          </div>
+          
+          <p style="color: #374151; line-height: 1.6;">
+            Barakallahu fiikum! 🤲
+          </p>
+          
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            <em>Ini adalah email otomatis dari sistem Jamaah.net. Jika Anda tidak mendaftar di platform kami, silakan abaikan email ini.</em>
+          </p>
+        </div>
+      </div>
+    `;
+    
+    // TODO: Send WhatsApp notification via Twilio (requires TWILIO credentials)
+    // const twilioSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    // const twilioToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    // const twilioWhatsAppNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
+    // if (twilioSid && twilioToken && twilioWhatsAppNumber) {
+    //   // Send WhatsApp via Twilio API
+    // }
+    
+    // TODO: Send Email via Resend (requires RESEND_API_KEY)
+    // const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    // if (resendApiKey) {
+    //   // Send email via Resend API
+    // }
+    
+    console.log('User approved successfully:', {
+      userId,
+      email: pendingUser.email,
+      memberId: pendingUser.memberId,
+      password: newPassword
+    });
+    
+    return c.json({ 
+      success: true,
+      message: 'User berhasil disetujui',
+      data: {
+        userId,
+        email: pendingUser.email,
+        name: pendingUser.name,
+        memberId: pendingUser.memberId,
+        password: newPassword,
+        whatsappMessage, // For manual sending if API not configured
+        emailSubject,
+        emailBody
+      }
+    });
+  } catch (error) {
+    console.log('Error in approve user endpoint:', error);
+    return c.json({ error: 'Gagal menyetujui user' }, 500);
+  }
+});
+
+// Get notifications for user
+app.get("/make-server-4319e602/api/notifications", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+    
+    if (error || !user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    
+    const notifications = await kv.getByPrefix(`notification:${user.id}:`);
+    return c.json(notifications.sort((a: any, b: any) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ));
+  } catch (error) {
+    console.log('Error fetching notifications:', error);
+    return c.json({ error: 'Gagal memuat notifikasi' }, 500);
+  }
+});
+
+// Mark notification as read
+app.post("/make-server-4319e602/api/notifications/:notificationId/read", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+    
+    if (error || !user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    
+    const notificationId = c.req.param('notificationId');
+    const notification = await kv.get(`notification:${user.id}:${notificationId}`);
+    
+    if (!notification) {
+      return c.json({ error: 'Notifikasi tidak ditemukan' }, 404);
+    }
+    
+    await kv.set(`notification:${user.id}:${notificationId}`, {
+      ...notification,
+      read: true
+    });
+    
+    return c.json({ success: true });
+  } catch (error) {
+    console.log('Error marking notification as read:', error);
+    return c.json({ error: 'Gagal memperbarui notifikasi' }, 500);
+  }
+});
+
+// Mark all notifications as read
+app.post("/make-server-4319e602/api/notifications/read-all", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+    
+    if (error || !user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    
+    const notifications = await kv.getByPrefix(`notification:${user.id}:`);
+    
+    for (const notification of notifications) {
+      await kv.set(`notification:${user.id}:${notification.id}`, {
+        ...notification,
+        read: true
+      });
+    }
+    
+    return c.json({ success: true });
+  } catch (error) {
+    console.log('Error marking all notifications as read:', error);
+    return c.json({ error: 'Gagal memperbarui notifikasi' }, 500);
   }
 });
 

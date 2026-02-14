@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Wallet, MessageSquare, History, LogOut, ChevronRight, Edit, Moon, Sun, Settings, Sparkles, Users, Clock, Menu, X, Grid, Heart, MessageCircle, Bookmark } from 'lucide-react';
+import { User, Wallet, MessageSquare, History, LogOut, ChevronRight, Edit, Moon, Sun, Settings, Sparkles, Users, Clock, Menu, X, Grid, Heart, MessageCircle, Bookmark, CreditCard, Lock, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { projectId } from '../utils/supabase/info';
 import EditProfileModal from './EditProfileModal';
 import PrayerTimesSettingsModal from './PrayerTimesSettingsModal';
+import ChangePasswordModal from './ChangePasswordModal';
 import { IslamicPattern, MosqueIcon } from './IslamicPattern';
 
 interface Profile {
@@ -34,6 +35,7 @@ export default function ProfileScreen({
   const [profile, setProfile] = useState<Profile | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPrayerTimesSettingsModal, setShowPrayerTimesSettingsModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'posts' | 'saved'>('posts');
@@ -267,6 +269,51 @@ export default function ProfileScreen({
             </div>
           )}
         </motion.div>
+
+        {/* Member ID Card */}
+        {session?.user?.user_metadata?.memberId && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            className="mb-4 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl p-4 shadow-lg relative overflow-hidden"
+          >
+            {/* Islamic Pattern Background */}
+            <div className="absolute inset-0 opacity-10">
+              <IslamicPattern className="text-white" />
+            </div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="bg-white/20 backdrop-blur-md p-2 rounded-lg">
+                    <CreditCard className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-white/90 text-xs font-semibold">ID Member</span>
+                </div>
+                <div className="text-white/80 text-[10px] font-medium">
+                  {session.user.user_metadata.joinedAt 
+                    ? new Date(session.user.user_metadata.joinedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short' })
+                    : 'Jamaah.net'
+                  }
+                </div>
+              </div>
+              
+              <div className="bg-white/20 backdrop-blur-md rounded-xl p-3 border border-white/30">
+                <div className="font-mono text-2xl font-bold text-white tracking-wider text-center">
+                  {session.user.user_metadata.memberId}
+                </div>
+              </div>
+              
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-white/80 text-xs">{profile?.name || session.user.email}</span>
+                <div className="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full">
+                  <span className="text-white text-[10px] font-semibold">VERIFIED</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Edit Profile Button */}
         <motion.button
@@ -551,19 +598,6 @@ export default function ProfileScreen({
                   delay={0.25}
                 />
 
-                {/* Chat */}
-                <SettingsMenuItem
-                  icon={MessageSquare}
-                  title="Kotak Masuk"
-                  subtitle="Pesan dan chat"
-                  gradient="from-cyan-500 to-blue-500"
-                  onClick={() => {
-                    setShowSettingsMenu(false);
-                    onNavigate('chat-list');
-                  }}
-                  delay={0.3}
-                />
-
                 {/* History */}
                 <SettingsMenuItem
                   icon={History}
@@ -573,14 +607,40 @@ export default function ProfileScreen({
                   onClick={() => {
                     setShowSettingsMenu(false);
                   }}
+                  delay={0.3}
+                />
+
+                {/* Change Password */}
+                <SettingsMenuItem
+                  icon={Lock}
+                  title="Ganti Password"
+                  subtitle="Ubah password Anda"
+                  gradient="from-red-500 to-pink-500"
+                  onClick={() => {
+                    setShowSettingsMenu(false);
+                    setShowChangePasswordModal(true);
+                  }}
                   delay={0.35}
+                />
+
+                {/* Contact Us */}
+                <SettingsMenuItem
+                  icon={Phone}
+                  title="Hubungi Kami"
+                  subtitle="Bantuan & dukungan"
+                  gradient="from-violet-500 to-purple-500"
+                  onClick={() => {
+                    setShowSettingsMenu(false);
+                    onNavigate('contact');
+                  }}
+                  delay={0.4}
                 />
 
                 {/* Logout */}
                 <motion.button
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: 0.45 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onLogout}
                   className="w-full bg-red-50 dark:bg-red-900/20 rounded-2xl p-4 flex items-center gap-3 border-2 border-red-200 dark:border-red-800"
@@ -620,6 +680,47 @@ export default function ProfileScreen({
           onClose={() => setShowPrayerTimesSettingsModal(false)}
         />
       )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          isOpen={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+        />
+      )}
+
+      {/* Floating Inbox Button - Like Timeline Add Button */}
+      <motion.button
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => onNavigate('chat-list')}
+        className="fixed bottom-24 right-6 z-30 group"
+        aria-label="Kotak Masuk"
+      >
+        {/* Tooltip */}
+        <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="bg-gray-900 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap shadow-xl">
+            Kotak Masuk
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+          </div>
+        </div>
+
+        {/* Main Button */}
+        <div className="relative w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-full shadow-2xl flex items-center justify-center border-4 border-white dark:border-gray-900 transition-all">
+          <MessageSquare className="w-6 h-6 text-white" />
+          
+          {/* Notification Badge (optional - can be connected to unread count) */}
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 shadow-lg">
+            <span className="text-[10px] font-bold text-white">3</span>
+          </div>
+        </div>
+
+        {/* Pulse Ring on Hover */}
+        <span className="absolute inset-0 rounded-full bg-cyan-500 opacity-0 group-hover:opacity-20 group-hover:animate-ping"></span>
+      </motion.button>
     </div>
   );
 }
